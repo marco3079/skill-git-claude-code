@@ -1,0 +1,23 @@
+{
+  "description": "Histórico de requisições: abre/fecha um checkpoint git por mensagem do usuário.",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/rh.js\" hook SessionStart", "timeout": 300 } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/rh.js\" hook UserPromptSubmit", "timeout": 120 } ] }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "TodoWrite|TaskCreate|TaskUpdate|ExitPlanMode|Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/rh.js\" hook PostToolUse", "timeout": 30 } ]
+      }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/rh.js\" hook Stop", "timeout": 120 } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/rh.js\" hook SessionEnd" } ] }
+    ]
+  }
+}

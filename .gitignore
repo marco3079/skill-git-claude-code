@@ -1,0 +1,7 @@
+node_modules/
+vscode-extension/lib/
+tools/preview-state.js
+.claude/
+.claude-review/
+*.log
+*.tmp

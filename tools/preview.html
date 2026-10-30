@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prévia do popup</title>
+<style>
+  /* imita as variáveis que o VS Code injeta no webview (Dark Modern / Light Modern) */
+  :root {
+    --vscode-editor-background: #1f1f1f; --vscode-sideBar-background: #181818; --vscode-foreground: #cccccc;
+    --vscode-descriptionForeground: #9d9d9d; --vscode-panel-border: #2b2b2b; --vscode-button-background: #0078d4;
+    --vscode-button-foreground: #ffffff; --vscode-button-hoverBackground: #026ec1; --vscode-list-hoverBackground: #2a2d2e;
+    --vscode-list-inactiveSelectionBackground: #37373d; --vscode-focusBorder: #0078d4; --vscode-input-background: #313131;
+    --vscode-input-border: #3c3c3c; --vscode-gitDecoration-addedResourceForeground: #81b88b;
+    --vscode-gitDecoration-deletedResourceForeground: #c74e39; --vscode-gitDecoration-modifiedResourceForeground: #e2c08d;
+    --vscode-editorWarning-foreground: #cca700; --vscode-font-family: "Segoe WPC", "Segoe UI", sans-serif;
+    --vscode-editor-font-family: Consolas, "Courier New", monospace;
+  }
+  :root.light {
+    --vscode-editor-background: #ffffff; --vscode-sideBar-background: #f8f8f8; --vscode-foreground: #3b3b3b;
+    --vscode-descriptionForeground: #717171; --vscode-panel-border: #e5e5e5; --vscode-button-background: #005fb8;
+    --vscode-button-hoverBackground: #0258a8; --vscode-list-hoverBackground: #f2f2f2;
+    --vscode-list-inactiveSelectionBackground: #e4e6f1; --vscode-focusBorder: #005fb8; --vscode-input-background: #ffffff;
+    --vscode-input-border: #cecece; --vscode-gitDecoration-addedResourceForeground: #587c0c;
+    --vscode-gitDecoration-deletedResourceForeground: #ad0707; --vscode-gitDecoration-modifiedResourceForeground: #895503;
+    --vscode-editorWarning-foreground: #bf8803;
+  }
+  #devbar { position: fixed; right: 8px; bottom: 8px; z-index: 99; display: flex; gap: 6px; }
+  #devbar button { font: 11px sans-serif; padding: 4px 8px; }
+</style>
+<link rel="stylesheet" href="../vscode-extension/media/panel.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="devbar">
+  <button onclick="document.documentElement.classList.toggle('light')">tema</button>
+  <button onclick="send(window.PREVIEW.running)">rodando</button>
+  <button onclick="send(window.PREVIEW.idle)">parado</button>
+  <button onclick="send({ empty: true, projects: [] })">vazio</button>
+</div>
+<script src="preview-state.js"></script>
+<script>
+  window.__log = [];
+  window.acquireVsCodeApi = () => ({
+    postMessage: m => { window.__log.push(m); if (m.type === 'ready') setTimeout(() => send(window.PREVIEW.idle), 30); },
+    getState: () => null,
+    setState: () => {},
+  });
+  function send(state) { window.postMessage({ type: 'state', state }, '*'); }
+</script>
+<script src="../vscode-extension/media/panel.js"></script>
+<script>
+  // parâmetros para gerar os prints do README: ?shot&theme=light&state=running&sel=3
+  const q = new URLSearchParams(location.search);
+  if (q.has("shot")) document.getElementById("devbar").style.display = "none";
+  if (q.get("theme") === "light") document.documentElement.classList.add("light");
+  if (q.get("state") === "running") setTimeout(() => send(window.PREVIEW.running), 60);
+  if (q.get("sel")) setTimeout(() => {
+    const st = q.get("state") === "running" ? window.PREVIEW.running : window.PREVIEW.idle;
+    const e = st.entries.find(x => x.kind === "request" && String(x.seq) === q.get("sel"));
+    if (e) window.postMessage({ type: "select", id: e.id }, "*");
+  }, 120);
+</script>
+</body>
+</html>

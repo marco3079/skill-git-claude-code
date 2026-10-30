@@ -1,0 +1,17 @@
+{
+  "name": "historico-requisicoes",
+  "owner": {
+    "name": "Marco Antônio",
+    "url": "https://github.com/marco3079"
+  },
+  "plugins": [
+    {
+      "name": "historico",
+      "source": "./plugin",
+      "description": "Checkpoint git por requisição do Claude Code, com plano, arquivos alterados e desfazer/refazer."
+    }
+  ],
+  "metadata": {
+    "description": "Histórico de requisições do Claude Code em git, com popup no VS Code e desfazer/refazer."
+  }
+}

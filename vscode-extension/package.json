@@ -1,0 +1,101 @@
+{
+  "name": "claude-request-history",
+  "displayName": "Claude Request History",
+  "description": "Popup com o histórico de requisições do Claude Code em formato git: pedido, plano, arquivos alterados, diff e desfazer/refazer da mais recente.",
+  "version": "1.0.0",
+  "publisher": "bottomup",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "history",
+    "git",
+    "undo"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeHistory.open",
+        "title": "Abrir histórico de requisições",
+        "category": "Claude Histórico",
+        "icon": "$(history)"
+      },
+      {
+        "command": "claudeHistory.openInEditor",
+        "title": "Abrir histórico numa aba do editor",
+        "category": "Claude Histórico"
+      },
+      {
+        "command": "claudeHistory.undo",
+        "title": "Desfazer a requisição mais recente",
+        "category": "Claude Histórico",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "claudeHistory.redo",
+        "title": "Refazer a última requisição desfeita",
+        "category": "Claude Histórico",
+        "icon": "$(redo)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "claudeHistory.open",
+        "key": "ctrl+alt+h",
+        "mac": "cmd+alt+h"
+      }
+    ],
+    "configuration": {
+      "title": "Claude Request History",
+      "properties": {
+        "claudeHistory.openAs": {
+          "type": "string",
+          "enum": [
+            "popup",
+            "editor"
+          ],
+          "enumDescriptions": [
+            "Abre o histórico numa janela flutuante separada",
+            "Abre o histórico numa aba do editor"
+          ],
+          "default": "popup",
+          "description": "Como o histórico é aberto."
+        },
+        "claudeHistory.notify": {
+          "type": "boolean",
+          "default": true,
+          "description": "Mostrar uma notificação quando uma requisição do Claude terminar com arquivos alterados."
+        },
+        "claudeHistory.autoOpen": {
+          "type": "boolean",
+          "default": false,
+          "description": "Abrir o histórico automaticamente quando uma requisição terminar com arquivos alterados."
+        }
+      }
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marco3079/skill-git-claude-code"
+  },
+  "homepage": "https://github.com/marco3079/skill-git-claude-code#readme",
+  "bugs": {
+    "url": "https://github.com/marco3079/skill-git-claude-code/issues"
+  },
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1f1f24",
+    "theme": "dark"
+  }
+}

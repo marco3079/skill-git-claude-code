@@ -1,0 +1,20 @@
+{
+  "name": "historico",
+  "version": "1.0.0",
+  "description": "Grava um checkpoint git por requisição (não por sessão) com o pedido, o plano do Claude e os arquivos alterados. Desfazer/refazer da requisição mais recente pelo chat ou pelo popup da extensão do VS Code.",
+  "author": {
+    "name": "Marco Antônio",
+    "url": "https://github.com/marco3079"
+  },
+  "keywords": [
+    "git",
+    "history",
+    "undo",
+    "redo",
+    "checkpoint",
+    "vscode"
+  ],
+  "homepage": "https://github.com/marco3079/skill-git-claude-code",
+  "repository": "https://github.com/marco3079/skill-git-claude-code",
+  "license": "MIT"
+}

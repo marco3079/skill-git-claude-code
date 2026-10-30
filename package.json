@@ -1,0 +1,25 @@
+{
+  "name": "skill-git-claude-code",
+  "version": "1.0.0",
+  "description": "Histórico de requisições do Claude Code em git: um commit por pedido, com plano, arquivos alterados e desfazer/refazer num popup do VS Code.",
+  "bin": {
+    "claude-historico": "install.js"
+  },
+  "files": [
+    "install.js",
+    "dist/claude-request-history.vsix"
+  ],
+  "scripts": {
+    "test": "node test/engine.test.js",
+    "build": "node tools/build.js",
+    "install-local": "node install.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["claude", "claude-code", "plugin", "git", "history", "undo", "vscode"],
+  "author": "Marco Antônio (https://github.com/marco3079)",
+  "license": "MIT",
+  "repository": "github:marco3079/skill-git-claude-code",
+  "homepage": "https://github.com/marco3079/skill-git-claude-code#readme"
+}
