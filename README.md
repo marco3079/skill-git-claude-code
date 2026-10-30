@@ -25,7 +25,7 @@
 Cole isto no chat do Claude Code (no VS Code ou no terminal):
 
 ```text
-Instale o histórico de requisições: rode `npx -y github:marco3079/skill-git-claude-code` e me mostre o resultado.
+Instale o histórico de requisições: rode `npx -y --allow-git=all github:marco3079/skill-git-claude-code` e me mostre o resultado.
 ```
 
 Depois:
@@ -34,6 +34,8 @@ Depois:
 2. Abra uma conversa nova do Claude Code.
 
 Você precisa de **Node.js 18+**, **git** e do **VS Code com a extensão Claude Code**.
+A opção `--allow-git=all` é exigida pelo npm 12, que bloqueia pacotes vindos direto do GitHub; nas versões
+anteriores ela é ignorada.
 
 <details>
 <summary><b>Outras formas de instalar</b></summary>
@@ -41,7 +43,7 @@ Você precisa de **Node.js 18+**, **git** e do **VS Code com a extensão Claude 
 **Pelo terminal**
 
 ```bash
-npx -y github:marco3079/skill-git-claude-code
+npx -y --allow-git=all github:marco3079/skill-git-claude-code
 ```
 
 **Manualmente**
@@ -125,7 +127,7 @@ resposta.
 ## Desinstalar
 
 ```bash
-npx -y github:marco3079/skill-git-claude-code --desinstalar
+npx -y --allow-git=all github:marco3079/skill-git-claude-code --desinstalar
 ```
 
 O histórico gravado continua em `~/.claude/request-history`. Apague a pasta se quiser.
@@ -150,7 +152,7 @@ Para atualizar a prévia e os prints: `KEEP=1 npm test` e depois `node tools/mak
 
 ## Para agentes (Claude)
 
-Se pediram para você instalar este repositório, rode `npx -y github:marco3079/skill-git-claude-code` e mostre a saída
+Se pediram para você instalar este repositório, rode `npx -y --allow-git=all github:marco3079/skill-git-claude-code` e mostre a saída
 ao usuário. Se ela disser que não achou o CLI do Claude Code, peça ao usuário para rodar no chat
 `/plugin marketplace add marco3079/skill-git-claude-code` e `/plugin install historico@historico-requisicoes`.
 No fim, lembre o usuário de recarregar o VS Code e abrir uma conversa nova.

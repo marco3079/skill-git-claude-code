@@ -3,8 +3,10 @@
 /**
  * Instalador do Histórico de Requisições do Claude Code (plugin + extensão do VS Code).
  *
- *   npx -y github:marco3079/skill-git-claude-code                 instala ou atualiza
- *   npx -y github:marco3079/skill-git-claude-code --desinstalar   remove (o histórico gravado é mantido)
+ *   npx -y --allow-git=all github:marco3079/skill-git-claude-code                 instala ou atualiza
+ *   npx -y --allow-git=all github:marco3079/skill-git-claude-code --desinstalar   remove (o histórico gravado é mantido)
+ *
+ * --allow-git=all: o npm 12 bloqueia pacotes vindos do git sem essa opção (nas versões antigas ela é ignorada).
  *
  * CLAUDE_HISTORICO_SOURCE=<pasta ou owner/repo> troca a origem do marketplace (útil para testar localmente).
  */
@@ -63,7 +65,8 @@ function findCode() {
 
 function otherCopies() {
   try {
-    const f = path.join(os.homedir(), '.claude', 'plugins', 'installed_plugins.json');
+    const config = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+    const f = path.join(config, 'plugins', 'installed_plugins.json');
     const keys = Object.keys(JSON.parse(fs.readFileSync(f, 'utf8')).plugins || {});
     return keys.filter(k => k.startsWith(`${PLUGIN}@`) && k !== `${PLUGIN}@${MARKETPLACE}`);
   } catch (_) { return []; }
