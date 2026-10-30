@@ -2,7 +2,7 @@
   "name": "claude-request-history",
   "displayName": "Claude Request History",
   "description": "Popup com o histórico de requisições do Claude Code em formato git: pedido, plano, arquivos alterados, diff e desfazer/refazer da mais recente.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "bottomup",
   "license": "MIT",
   "engines": {
@@ -27,9 +27,12 @@
     "commands": [
       {
         "command": "claudeHistory.open",
-        "title": "Abrir histórico de requisições",
+        "title": "Histórico de requisições do Claude",
         "category": "Claude Histórico",
-        "icon": "$(history)"
+        "icon": {
+          "light": "media/toolbar-light.svg",
+          "dark": "media/toolbar-dark.svg"
+        }
       },
       {
         "command": "claudeHistory.openInEditor",
@@ -49,6 +52,14 @@
         "icon": "$(redo)"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "claudeHistory.open",
+          "group": "navigation@50"
+        }
+      ]
+    },
     "keybindings": [
       {
         "command": "claudeHistory.open",
