@@ -22,16 +22,32 @@
 
 ## Instalar com um prompt
 
-Cole isto no chat do Claude Code (no VS Code ou no terminal):
+Mande o link no chat do Claude Code (no app desktop, no VS Code ou no terminal):
 
 ```text
-Instale o histórico de requisições: rode `npx -y --allow-git=all github:marco3079/skill-git-claude-code` e me mostre o resultado.
+instala isso: https://github.com/marco3079/skill-git-claude-code
 ```
 
-Depois:
+> **Claude, para instalar este repositório:** rode o comando abaixo, mostre a saída ao usuário e peça para ele
+> recarregar o VS Code (`Ctrl+Shift+P` → **Developer: Reload Window**) e abrir uma conversa nova.
+>
+> ```bash
+> npx -y --allow-git=all github:marco3079/skill-git-claude-code
+> ```
+
+Um comando instala as três partes, e elas valem para o Claude Code desktop e para o VS Code. Os dois usam a mesma
+configuração em `~/.claude`.
+
+| O que | Para quê |
+|---|---|
+| Plugin `historico` | grava o histórico (hooks), as skills e os comandos `/historico:*` |
+| Plugin `historico-painel` | painel **Histórico** ao lado do chat, no app desktop e no Claude Code do VS Code |
+| Extensão do VS Code | popup completo, botão no topo do editor e diff lado a lado |
+
+Depois de instalar:
 
 1. Recarregue o VS Code: `Ctrl+Shift+P` → **Developer: Reload Window**.
-2. Abra uma conversa nova do Claude Code.
+2. Abra uma conversa nova do Claude Code, no app desktop ou no VS Code.
 
 Você precisa de **Node.js 18+**, **git** e do **VS Code com a extensão Claude Code**.
 A opção `--allow-git=all` é exigida pelo npm 12, que bloqueia pacotes vindos direto do GitHub; nas versões
@@ -52,7 +68,10 @@ npx -y --allow-git=all github:marco3079/skill-git-claude-code
    ```text
    /plugin marketplace add marco3079/skill-git-claude-code
    /plugin install historico@historico-requisicoes
+   /plugin install historico-painel@historico-requisicoes
    ```
+   No app desktop, onde `/plugin` não roda: **+** ao lado da caixa de mensagem → **Plugins** → **Add marketplace**
+   com `marco3079/skill-git-claude-code` → **Add plugin** (os dois).
 2. Baixe [`dist/claude-request-history.vsix`](dist/claude-request-history.vsix) e instale no VS Code:
    **Extensões** → `···` → **Instalar do VSIX…**
 
@@ -96,7 +115,8 @@ Desfeita a requisição #2 "Agora troque o conteúdo de ola.txt para tchau." (1 
 
 | Onde | O que fazer |
 |---|---|
-| VS Code | `Ctrl+Alt+H` ou o item **Claude #N** na barra de status abre o popup |
+| Ao lado do chat | o painel **Histórico** abre sozinho quando o projeto já tem histórico; `/historico-painel` reabre |
+| VS Code | o botão do histórico no topo do editor, `Ctrl+Alt+H` ou o item **Claude #N** na barra de status abre o popup |
 | Popup | clique numa requisição para ver os detalhes; clique num arquivo para ver o diff antes ↔ depois |
 | Chat | `/historico:abrir`, `/historico:listar`, `/historico:desfazer`, `/historico:refazer` (`--forcar` se houver conflito) |
 | Em texto | "desfaz o que você fez" ou "refaz": o Claude usa a skill `historico` |
@@ -118,6 +138,7 @@ São duas partes:
 | Pasta | O que é |
 |---|---|
 | [`plugin/`](plugin) | Plugin `historico` do Claude Code: hooks, CLI `rh.js`, skill e comandos `/historico:*` |
+| [`painel/`](painel) | Plugin `historico-painel`: o painel ao lado do chat (um mod de hooks em TypeScript) |
 | [`vscode-extension/`](vscode-extension) | Extensão **Claude Request History**: popup, barra de status, diff e desfazer/refazer |
 | [`install.js`](install.js) | Instalador usado pelo `npx` |
 
@@ -152,10 +173,13 @@ Para atualizar a prévia e os prints: `KEEP=1 npm test` e depois `node tools/mak
 
 ## Para agentes (Claude)
 
-Se pediram para você instalar este repositório, rode `npx -y --allow-git=all github:marco3079/skill-git-claude-code` e mostre a saída
-ao usuário. Se ela disser que não achou o CLI do Claude Code, peça ao usuário para rodar no chat
-`/plugin marketplace add marco3079/skill-git-claude-code` e `/plugin install historico@historico-requisicoes`.
-No fim, lembre o usuário de recarregar o VS Code e abrir uma conversa nova.
+Se pediram para você instalar este repositório ("instala isso", "instala esse plugin"), rode
+`npx -y --allow-git=all github:marco3079/skill-git-claude-code` e mostre a saída ao usuário. Esse comando instala os
+plugins `historico` e `historico-painel` no Claude Code (que valem para o app desktop e para o VS Code) e a extensão
+do VS Code. Se ela disser que não achou o CLI do Claude Code, peça ao usuário para rodar no chat
+`/plugin marketplace add marco3079/skill-git-claude-code`, `/plugin install historico@historico-requisicoes` e
+`/plugin install historico-painel@historico-requisicoes`. No fim, lembre o usuário de recarregar o VS Code e abrir
+uma conversa nova.
 
 ## Licença
 

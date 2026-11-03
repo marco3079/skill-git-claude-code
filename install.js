@@ -18,7 +18,8 @@ const { spawnSync } = require('child_process');
 const REPO = 'marco3079/skill-git-claude-code';
 const SOURCE = process.env.CLAUDE_HISTORICO_SOURCE || REPO;
 const MARKETPLACE = 'historico-requisicoes';
-const PLUGIN = 'historico';
+// historico: hooks, CLI e skills; historico-painel: painel ao lado do chat (desktop e VS Code)
+const PLUGINS = ['historico', 'historico-painel'];
 const EXT_ID = 'bottomup.claude-request-history';
 const VSIX = path.join(__dirname, 'dist', 'claude-request-history.vsix');
 const IS_WIN = process.platform === 'win32';
@@ -68,16 +69,17 @@ function otherCopies() {
     const config = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
     const f = path.join(config, 'plugins', 'installed_plugins.json');
     const keys = Object.keys(JSON.parse(fs.readFileSync(f, 'utf8')).plugins || {});
-    return keys.filter(k => k.startsWith(`${PLUGIN}@`) && k !== `${PLUGIN}@${MARKETPLACE}`);
+    return keys.filter(k => PLUGINS.some(p => k.startsWith(`${p}@`)) && !k.endsWith(`@${MARKETPLACE}`));
   } catch (_) { return []; }
 }
 
 // ---------------------------------------------------------------------------
 
-function installPlugin(claude) {
+function installPlugins(claude) {
   if (!claude) {
-    warn('Não encontrei o CLI do Claude Code. No chat do Claude, rode estes dois comandos:');
-    console.log(`    /plugin marketplace add ${REPO}\n    /plugin install ${PLUGIN}@${MARKETPLACE}`);
+    warn('Não encontrei o CLI do Claude Code. No chat do Claude, rode estes comandos:');
+    console.log(`    /plugin marketplace add ${REPO}`);
+    for (const p of PLUGINS) console.log(`    /plugin install ${p}@${MARKETPLACE}`);
     return false;
   }
   let r = run(claude, ['plugin', 'marketplace', 'add', SOURCE]);
@@ -87,16 +89,19 @@ function installPlugin(claude) {
     if (r.code !== 0) { warn(`Falha ao adicionar o marketplace:\n${r.out}`); return false; }
   }
   ok(`Marketplace "${MARKETPLACE}" pronto (${SOURCE})`);
-  r = run(claude, ['plugin', 'install', `${PLUGIN}@${MARKETPLACE}`]);
-  if (r.code !== 0 || /already/i.test(r.out)) {
-    const u = run(claude, ['plugin', 'update', `${PLUGIN}@${MARKETPLACE}`]);
-    if (r.code !== 0 && u.code !== 0) { warn(`Falha ao instalar o plugin:\n${r.out}\n${u.out}`); return false; }
+  let all = true;
+  for (const p of PLUGINS) {
+    r = run(claude, ['plugin', 'install', `${p}@${MARKETPLACE}`]);
+    if (r.code !== 0 || /already/i.test(r.out)) {
+      const u = run(claude, ['plugin', 'update', `${p}@${MARKETPLACE}`]);
+      if (r.code !== 0 && u.code !== 0) { warn(`Falha ao instalar o plugin "${p}":\n${r.out}\n${u.out}`); all = false; continue; }
+    }
+    ok(`Plugin "${p}" instalado no Claude Code`);
   }
-  ok(`Plugin "${PLUGIN}" instalado no Claude Code`);
   for (const k of otherCopies()) {
-    warn(`Há outra cópia do plugin instalada (${k}); remova para não gravar tudo em dobro: claude plugin uninstall ${k}`);
+    warn(`Há outra cópia instalada (${k}); remova para não rodar em dobro: claude plugin uninstall ${k}`);
   }
-  return true;
+  return all;
 }
 
 function installExtension(code) {
@@ -114,11 +119,11 @@ function installExtension(code) {
 
 function uninstall(claude, code) {
   if (claude) {
-    run(claude, ['plugin', 'uninstall', `${PLUGIN}@${MARKETPLACE}`]);
+    for (const p of PLUGINS) run(claude, ['plugin', 'uninstall', `${p}@${MARKETPLACE}`]);
     run(claude, ['plugin', 'marketplace', 'remove', MARKETPLACE]);
-    ok('Plugin e marketplace removidos do Claude Code');
+    ok('Plugins e marketplace removidos do Claude Code');
   } else {
-    warn(`No chat do Claude: /plugin uninstall ${PLUGIN}@${MARKETPLACE}`);
+    for (const p of PLUGINS) warn(`No chat do Claude: /plugin uninstall ${p}@${MARKETPLACE}`);
   }
   if (code) { run(code, ['--uninstall-extension', EXT_ID]); ok('Extensão removida do VS Code'); }
   info(`O histórico gravado continua em ${path.join(os.homedir(), '.claude', 'request-history')} (apague se quiser).`);
@@ -136,14 +141,15 @@ function main() {
     uninstall(claude, code);
     return;
   }
-  const p = installPlugin(claude);
+  const p = installPlugins(claude);
   const e = installExtension(code);
   console.log('');
   if (p && e) {
     ok('Tudo pronto. Para ativar:');
     console.log('    1. Recarregue o VS Code: Ctrl+Shift+P → "Developer: Reload Window"');
     console.log('    2. Abra uma conversa nova do Claude Code');
-    console.log('    3. Depois de um pedido, abra o histórico com Ctrl+Alt+H ou /historico:abrir');
+    console.log('    3. O painel "Histórico" abre ao lado do chat (ou digite /historico-painel);');
+    console.log('       no editor do VS Code também há o botão do histórico no topo e o Ctrl+Alt+H');
   } else {
     warn('Instalação incompleta: siga os avisos acima.');
     process.exitCode = 1;

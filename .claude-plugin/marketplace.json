@@ -9,6 +9,11 @@
       "name": "historico",
       "source": "./plugin",
       "description": "Checkpoint git por requisição do Claude Code, com plano, arquivos alterados e desfazer/refazer."
+    },
+    {
+      "name": "historico-painel",
+      "source": "./painel",
+      "description": "Painel ao lado do chat (Claude Code desktop e VS Code) com o histórico: grafo, plano, arquivos, diff e desfazer/refazer."
     }
   ],
   "metadata": {

@@ -5,3 +5,4 @@ tools/preview-state.js
 .claude-review/
 *.log
 *.tmp
+painel/.claude-plugin/types/

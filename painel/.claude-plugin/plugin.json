@@ -1,0 +1,10 @@
+{
+  "name": "historico-painel",
+  "version": "1.0.0",
+  "description": "Painel ao lado do chat (Claude Code desktop e VS Code) com o histórico de requisições do plugin historico: grafo, plano, arquivos, diff e desfazer/refazer.",
+  "author": { "name": "Marco Antônio", "url": "https://github.com/marco3079" },
+  "homepage": "https://github.com/marco3079/skill-git-claude-code",
+  "repository": "https://github.com/marco3079/skill-git-claude-code",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}
