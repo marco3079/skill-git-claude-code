@@ -31,6 +31,7 @@ export type HistEntry = {
   interrupted?: boolean
   target?: string
   forced?: boolean
+  conflicts?: string[]
   note?: string | null
 }
 
@@ -39,9 +40,13 @@ export type HistIndex = { project: string; entries: HistEntry[]; disabled?: stri
 /** O que o painel mostra agora; os dados em si vêm do disco a cada mudança do index.json. */
 export type PainelView = {
   selected: string | null
+  /** path '*' é o patch inteiro da linha */
   diff: { id: string; path: string; text: string } | null
   showManual: boolean
   showEmpty: boolean
+  query: string
+  /** quantas linhas a lista mostra quando o painel é estreito */
+  listLimit: number
   message: { text: string; tone: 'ok' | 'warn' | 'error' } | null
   pendingForce: 'undo' | 'redo' | null
   busy: boolean
