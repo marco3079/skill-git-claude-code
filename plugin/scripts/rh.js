@@ -66,7 +66,7 @@ function formatList(store, idx, n = 20) {
     if (e.kind === 'request') {
       const flags = [STATUS_LABEL[e.status], e.amended ? 'alterada no meio' : '',
         t.undo === e ? '<- desfazer disponível' : '', t.redo === e ? '<- refazer disponível' : ''].filter(Boolean).join(', ');
-      rows.push(`* ${sha}  #${e.seq} ${e.title}${stats}  (${ago(e.startedAt)})${flags ? '  [' + flags + ']' : ''}`);
+      rows.push(`* ${sha}  #${e.seq} ${core.displayTitle(e)}${stats}  (${ago(e.startedAt)})${flags ? '  [' + flags + ']' : ''}`);
     } else if (e.kind === 'undo' || e.kind === 'redo') {
       rows.push(`* ${sha}  ${e.kind === 'undo' ? '↶ desfez' : '↷ refez'} #${e.seq}${stats}  (${ago(e.at)})`);
     } else if (e.kind === 'manual') {
@@ -81,9 +81,9 @@ function formatList(store, idx, n = 20) {
 function formatShow(store, idx, seq, withPatch) {
   const r = idx && idx.entries.find(e => e.kind === 'request' && e.seq === seq);
   if (!r) return `Requisição #${seq} não encontrada.`;
-  const out = [`#${r.seq} ${r.title}`, `status: ${r.status}${r.amended ? ' (alterada no meio do caminho)' : ''}`,
+  const out = [`#${r.seq} ${core.displayTitle(r)}`,`status: ${r.status}${r.amended ? ' (alterada no meio do caminho)' : ''}`,
     `commit: ${r.commit || '(sem alterações)'}`, `início: ${r.startedAt}`, ''];
-  r.prompts.forEach((p, i) => out.push(i === 0 ? 'Pedido:' : `Alteração ${i}:`, p.text, ''));
+  r.prompts.forEach((p, i) => out.push(i === 0 ? 'Pedido:' : `Alteração ${i}:`, core.cleanPrompt(p.text), ''));
   if (r.plan && r.plan.items && r.plan.items.length) {
     out.push('Plano:');
     for (const it of r.plan.items) out.push(`  [${it.status === 'completed' ? 'x' : it.status === 'in_progress' ? '~' : ' '}] ${it.text}`);

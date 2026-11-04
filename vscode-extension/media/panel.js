@@ -5,7 +5,7 @@
   const ui = {
     selected: saved.selected || null,
     showManual: saved.showManual !== false,
-    showEmpty: !!saved.showEmpty,
+    showEmpty: saved.showEmpty !== false,
     query: '',
     expanded: {},
   };
@@ -71,9 +71,19 @@
   }
   function entryById(id) { return S && S.entries ? S.entries.find(e => e.id === id) : null; }
 
+  // o Claude do VS Code põe blocos <ide_opened_file>… antes da mensagem: fora do que mostramos
+  function cleanPrompt(text) {
+    return String(text || '').replace(/<(ide_[a-z_]+|system-reminder)>[\s\S]*?<\/\1>\s*/gi, '').trim();
+  }
+  function displayTitle(e) {
+    if (e.title && !/^\s*</.test(e.title)) return e.title;
+    const p = e.prompts && e.prompts[0] ? cleanPrompt(e.prompts[0].text) : '';
+    return (p.split('\n').find(l => l.trim()) || '').trim().slice(0, 90) || e.title || 'Requisição';
+  }
+
   function titleOf(e) {
     switch (e.kind) {
-      case 'request': return e.title || 'Requisição';
+      case 'request': return displayTitle(e);
       case 'manual': return 'Alterações fora do Claude' + (e.note ? ` · ${e.note}` : '');
       case 'undo': { const t = entryById(e.target); return `Desfez #${e.seq}${t ? ' · ' + t.title : ''}`; }
       case 'redo': { const t = entryById(e.target); return `Refez #${e.seq}${t ? ' · ' + t.title : ''}`; }
@@ -461,7 +471,8 @@
       if (e.prompts && e.prompts.length) {
         const ps = e.prompts.map((p, i) => {
           const label = i === 0 ? `Pedido · ${when(p.at)}` : `${I.pencil} Alteração no meio do caminho · ${when(p.at)}`;
-          return `<div class="prompt ${i ? 'amend' : ''}"><div class="p-label">${label}</div>${clampable('p' + e.id + i, esc(p.text), p.text.length > 700 || p.text.split('\n').length > 9)}</div>`;
+          const text = cleanPrompt(p.text);
+          return `<div class="prompt ${i ? 'amend' : ''}"><div class="p-label">${label}</div>${clampable('p' + e.id + i, esc(text), text.length > 700 || text.split('\n').length > 9)}</div>`;
         }).join('');
         h.push(section('Pedido', e.prompts.length > 1 ? `${e.prompts.length} mensagens` : '', ps));
       } else {

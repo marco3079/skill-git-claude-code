@@ -198,6 +198,36 @@ try {
   assert.strictEqual(req(7).commit, null, 'a requisição que pediu o refazer não leva o refazer como alteração própria');
   ok('refazer via skill (--session) dentro de uma requisição em andamento');
 
+  // agentes em segundo plano editando depois do Stop + mensagem vinda do VS Code com bloco do editor
+  hook('UserPromptSubmit', { session_id: 'S3', prompt: '<ide_opened_file>The user opened the file x.php in the IDE.</ide_opened_file>\nCria o kit com agentes' });
+  assert.strictEqual(req(8).title, 'Cria o kit com agentes', 'bloco <ide_*> fora do título');
+  assert.ok(!req(8).prompts[0].text.includes('<ide_'));
+  hook('Stop', { session_id: 'S3' }); // a resposta principal acaba antes dos agentes
+  assert.strictEqual(req(8).commit, null);
+  write('kit/migracao.sql', 'CREATE TABLE kit;\n');
+  hook('PostToolUse', { session_id: 'S3', tool_name: 'Write', tool_input: { file_path: P('kit/migracao.sql') } });
+  write('kit/kit.php', '<?php // kit\n');
+  hook('PostToolUse', { session_id: 'S3', tool_name: 'Write', tool_input: { file_path: P('kit/kit.php') } });
+  write('NOTAS.md', 'edição minha\n'); // edição do usuário no meio
+  hook('UserPromptSubmit', { session_id: 'S3', prompt: 'deixa que eu rodo o comando' });
+  assert.deepStrictEqual(req(8).files.map(f => f.p), ['kit/kit.php', 'kit/migracao.sql'], 'trabalho dos agentes vai para a #8');
+  const lastManual = idx().entries.filter(e => e.kind === 'manual').pop();
+  assert.deepStrictEqual(lastManual.files.map(f => f.p), ['NOTAS.md'], 'só a edição do usuário fica como manual');
+  hook('Stop', { session_id: 'S3' });
+  // nada gravado depois da #9: a edição tardia entra na própria #9
+  write('kit/extra.php', '<?php // extra\n');
+  hook('PostToolUse', { session_id: 'S3', tool_name: 'Edit', tool_input: { file_path: P('kit/extra.php') } });
+  hook('UserPromptSubmit', { session_id: 'S4', prompt: 'outra sessão pergunta algo' });
+  assert.deepStrictEqual(req(9).files.map(f => f.p), ['kit/extra.php'], 'entra na própria #9');
+  // a #10 (outra sessão) já começou: a próxima edição tardia da #9 vira "continuação"
+  write('kit/extra2.php', '<?php // extra 2\n');
+  hook('PostToolUse', { session_id: 'S3', tool_name: 'Write', tool_input: { file_path: P('kit/extra2.php') } });
+  hook('Stop', { session_id: 'S4' });
+  const cont = idx().entries.find(e => e.continuationOf === req(9).id);
+  assert.ok(cont && cont.files.map(f => f.p).join() === 'kit/extra2.php', 'continuação da #9 com o arquivo do agente');
+  assert.strictEqual(req(10).commit, null, 'a #10 não fica com o trabalho da #9');
+  ok('edições de agentes em segundo plano depois do Stop vão para a requisição (ou uma continuação), não para "fora do Claude"');
+
   console.log('\n' + cli('listar', '-n', '30').out);
   console.log(`Todos os ${step} cenários passaram.`);
 } finally {

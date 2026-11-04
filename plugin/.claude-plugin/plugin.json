@@ -1,6 +1,6 @@
 {
   "name": "historico",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Grava um checkpoint git por requisição (não por sessão) com o pedido, o plano do Claude e os arquivos alterados. Desfazer/refazer da requisição mais recente pelo chat ou pelo popup da extensão do VS Code.",
   "author": {
     "name": "Marco Antônio",

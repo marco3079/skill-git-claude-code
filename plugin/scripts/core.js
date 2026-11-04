@@ -182,6 +182,20 @@ function parsePlanText(text) {
   return items.length ? items : null;
 }
 
+/**
+ * O Claude do VS Code põe antes da mensagem blocos de contexto do editor
+ * (<ide_opened_file>, <ide_selection>…): fora do título e do texto gravado.
+ */
+function cleanPrompt(text) {
+  return String(text || '').replace(/<(ide_[a-z_]+|system-reminder)>[\s\S]*?<\/\1>\s*/gi, '').trim();
+}
+
+/** Título para mostrar; corrige os gravados antes da limpeza dos blocos do editor. */
+function displayTitle(e) {
+  if (e.title && !/^\s*</.test(e.title)) return e.title;
+  return firstLine(cleanPrompt(e.prompts && e.prompts[0] && e.prompts[0].text)) || e.title || 'Requisição';
+}
+
 /** Mensagens que não foram digitadas pelo usuário (avisos de tarefas em segundo plano etc.). */
 function isSystemPrompt(prompt) {
   return /^\s*<(task-notification|side-sessions-event|ci-monitor-event|system-reminder|scheduled-task|teammate-message|channel-message|local-command-[\w-]+|command-[\w-]+)[\s>]/i.test(String(prompt || ''));
@@ -257,7 +271,7 @@ class Store {
   git(args, opts = {}) {
     const r = spawnSync('git', ['-c', 'core.quotepath=false', ...args], {
       cwd: this.projectDir,
-      env: this.gitEnv(),
+      env: opts.env ? Object.assign(this.gitEnv(), opts.env) : this.gitEnv(),
       input: opts.input,
       encoding: opts.buffer ? 'buffer' : 'utf8',
       maxBuffer: 512 * 1024 * 1024,
@@ -533,6 +547,67 @@ class Store {
     return lines.join('\n') + '\n';
   }
 
+  /**
+   * Árvore = `baseTree` com só `paths` trazidos do snapshot atual (índice principal).
+   * Um caminho que sumiu do disco sai da árvore.
+   */
+  treeWithPaths(baseTree, paths) {
+    const staged = new Map();
+    for (const rec of this.git(['ls-files', '-s', '-z']).split('\0')) {
+      const m = /^(\d+) ([0-9a-f]+) \d+\t([\s\S]+)$/.exec(rec);
+      if (m) staged.set(IS_WIN ? m[3].toLowerCase() : m[3], { mode: m[1], sha: m[2], path: m[3] });
+    }
+    const lines = paths.map(p => {
+      const s = staged.get(IS_WIN ? p.toLowerCase() : p);
+      return s ? `${s.mode} ${s.sha}\t${s.path}` : `0 ${'0'.repeat(40)}\t${p}`;
+    });
+    const tmp = path.join(this.gitDir, `index.parcial.${process.pid}`);
+    const env = { GIT_INDEX_FILE: tmp };
+    try {
+      this.git(['read-tree', baseTree], { env });
+      this.git(['update-index', '-z', '--index-info'], { env, input: lines.join('\0') + '\0' });
+      return this.git(['write-tree'], { env }).trim();
+    } finally {
+      try { fs.unlinkSync(tmp); } catch (_) {}
+    }
+  }
+
+  /**
+   * Edições que agentes em segundo plano fizeram depois do Stop da requisição (lateFiles):
+   * entram na própria requisição quando nada veio depois dela, ou numa "continuação" logo antes
+   * do checkpoint seguinte. O resto do que mudou no disco continua sendo "fora do Claude".
+   */
+  commitLateWork(idx, except) {
+    const pending = idx.entries.filter(e => e.kind === 'request' && e !== except && (e.lateFiles || []).length);
+    if (!pending.length) return;
+    this.snapshot(); // atualiza o índice principal com o disco
+    for (const r of pending) {
+      const files = r.lateFiles;
+      r.lateFiles = [];
+      const headTree = this.treeOf(idx.head, idx);
+      const tree = this.treeWithPaths(headTree, files);
+      if (tree === headTree) continue;
+      const isLast = idx.entries[idx.entries.length - 1] === r;
+      if (isLast && (r.commit ? r.commit === idx.head : r.parent === idx.head)) {
+        this.commitRequest(idx, r, r.parent, this.treeOf(r.parent, idx), tree);
+        r.lateWork = true;
+        this.updateRefs({ 'refs/heads/main': idx.head, [`refs/requests/${r.seq}`]: r.commit });
+        continue;
+      }
+      idx.seq += 1;
+      const c = {
+        kind: 'request', id: newId('r'), seq: idx.seq, sessionId: r.sessionId, status: 'done', auto: true,
+        continuationOf: r.id, title: `Continuação da #${r.seq} (agentes em segundo plano)`, prompts: [],
+        startedAt: r.lateActivityAt || nowIso(), lastActivityAt: nowIso(), stoppedAt: nowIso(), endedAt: nowIso(),
+        parent: idx.head, commit: null, files: [], fileCount: 0, add: 0, del: 0,
+        plan: null, planRevisions: 0, toolFiles: files, amended: false,
+      };
+      this.commitRequest(idx, c, idx.head, headTree, tree);
+      idx.entries.push(c);
+      this.updateRefs({ 'refs/heads/main': idx.head, [`refs/requests/${c.seq}`]: c.commit });
+    }
+  }
+
   commitRequest(idx, r, parent, parentTree, tree) {
     const msg = this.commitMessage(r);
     r.parent = parent;
@@ -583,7 +658,7 @@ class Store {
       const sess = idx.sessions[sessionId] || (idx.sessions[sessionId] = { seenOps: countOps(idx) });
       const notices = opsSince(idx, sess.seenOps);
       sess.seenOps = countOps(idx);
-      const text = clip(prompt);
+      const text = clip(cleanPrompt(prompt));
       const cur = sess.current && this.entryById(idx, sess.current);
 
       if (isSystemPrompt(prompt)) {
@@ -611,12 +686,16 @@ class Store {
         }
       }
       const othersRunning = idx.entries.some(e => e.sessionId !== sessionId && this.isRunning(e));
-      if (!othersRunning) this.checkpointManual(idx);
+      if (!othersRunning) {
+        // o que agentes em segundo plano editaram depois do Stop é do Claude, não do usuário
+        this.commitLateWork(idx);
+        this.checkpointManual(idx);
+      }
 
       idx.seq += 1;
       const r = {
         kind: 'request', id: newId('r'), seq: idx.seq, sessionId, status: 'open',
-        title: firstLine(prompt) || '(mensagem vazia)', prompts: [{ text, at: nowIso() }],
+        title: firstLine(text) || '(mensagem vazia)', prompts: [{ text, at: nowIso() }],
         startedAt: nowIso(), lastActivityAt: nowIso(), endedAt: null, stoppedAt: null,
         parent: idx.head, commit: null, files: [], fileCount: 0, add: 0, del: 0,
         plan: null, planRevisions: 0, toolFiles: [], intro: null, summary: null, amended: false,
@@ -634,7 +713,19 @@ class Store {
       const idx = this.load();
       const sess = idx && idx.sessions[sessionId];
       const r = sess && sess.current && this.entryById(idx, sess.current);
-      if (!r || r.status !== 'open') return;
+      if (!r) return;
+      if (r.status !== 'open') {
+        // a requisição já parou, mas um agente em segundo plano dela continua editando:
+        // guarda os arquivos para atribuir a ela no próximo checkpoint (commitLateWork)
+        const rel = FILE_TOOLS.test(toolName) && this.relPath(toolInput && (toolInput.file_path || toolInput.notebook_path));
+        if (rel) {
+          r.lateFiles = r.lateFiles || [];
+          if (!r.lateFiles.some(f => samePath(f, rel))) r.lateFiles.push(rel);
+          r.lateActivityAt = nowIso();
+          this.save(idx);
+        }
+        return;
+      }
       let changed = false;
       if (PLAN_TOOLS.test(toolName)) changed = applyPlanTool(r, toolName, toolInput, toolResponse);
       if (FILE_TOOLS.test(toolName)) {
@@ -676,6 +767,7 @@ class Store {
         const items = parsePlanText(texts.first) || parsePlanText(texts.last);
         if (items) { r.plan = { items, text: null, fromText: true }; r.planRevisions = 1; }
       }
+      this.commitLateWork(idx, r);
       this.finalizeRequest(idx, r, { rewrite: true });
       r.status = 'done';
       r.stoppedAt = r.endedAt = nowIso();
@@ -735,6 +827,7 @@ class Store {
       if (!r) {
         return { ok: false, reason: 'nothing', message: op === 'undo' ? 'Nada para desfazer.' : 'Nada para refazer.' };
       }
+      this.commitLateWork(idx);
       this.checkpointManual(idx, op === 'undo' ? `antes de desfazer #${r.seq}` : `antes de refazer #${r.seq}`);
       const changes = r.filesTruncated ? this.diffFiles(r.parent, r.commit) : r.files;
       const files = changes.map(f => f.p);
@@ -853,4 +946,5 @@ function requestOpen(projectDir) {
 module.exports = {
   HOME, Store, findStore, listProjects, computeTargets, normalizeDir, projectKey,
   requestOpen, logError, firstLine, readTurnTexts, applyPlanTool, parsePlanText, isSystemPrompt,
+  cleanPrompt, displayTitle,
 };

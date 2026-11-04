@@ -34,13 +34,15 @@ const CARD_BG = '#80808012'
 const LOGO = '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E8825F"/><stop offset="1" stop-color="#7B5CF5"/></linearGradient></defs><rect width="128" height="128" rx="30" fill="url(#bg)"/><g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M36 30v68" stroke-width="6" stroke-opacity=".85"/><circle cx="36" cy="32" r="8.5" fill="#fff" stroke-width="0"/><circle cx="36" cy="64" r="8.5" fill="#fff" stroke-width="0"/><circle cx="36" cy="96" r="7" fill="#9b6be0" stroke-width="4" stroke-dasharray="4.4 3.2"/><path d="M76 38 62 52l14 14" stroke-width="7.5"/><path d="M62 52h26a16 16 0 0 1 0 32H70" stroke-width="7.5"/></g></svg>'
 
 const firstLine = (s: string) => s.split('\n')[0] ?? s
+// o Claude do VS Code põe blocos <ide_opened_file>… antes da mensagem: fora do que mostramos
+const cleanPrompt = (s?: string) => String(s || '').replace(/<(ide_[a-z_]+|system-reminder)>[\s\S]*?<\/\1>\s*/gi, '').trim()
 
 const VIEW0: PainelView = {
-  selected: null, diff: null, showManual: true, showEmpty: false, query: '', listLimit: NARROW_ROWS,
+  selected: null, diff: null, showManual: true, showEmpty: true, query: '', listLimit: NARROW_ROWS,
   message: null, pendingForce: null, busy: false,
 }
 // Troque o tag quando os campos mudarem: valores gravados por uma versão anterior voltam ao inicial.
-const view = atom({ plugin: 'historico-painel', key: 'view' } as const, VIEW0, { shape: 'view-2' })
+const view = atom({ plugin: 'historico-painel', key: 'view' } as const, VIEW0, { shape: 'view-3' })
 const stamp = atom({ plugin: 'historico-painel', key: 'stamp' } as const, '')
 
 type Ctx = { root: string; indexFile: string; repoDir: string; rh: string | null }
@@ -153,7 +155,11 @@ function isRunning(e: HistEntry) {
 function titleOf(e: HistEntry, idx: HistIndex): string {
   const target = e.target ? idx.entries.find(x => x.id === e.target) : undefined
   switch (e.kind) {
-    case 'request': return e.title || 'Requisição'
+    case 'request': {
+      if (e.title && !/^\s*</.test(e.title)) return e.title
+      const first = cleanPrompt(e.prompts?.[0]?.text).split('\n').find(l => l.trim())
+      return first?.trim().slice(0, 90) || e.title || 'Requisição'
+    }
     case 'manual': return 'Alterações fora do Claude' + (e.note ? ` · ${e.note}` : '')
     case 'undo': return `Desfez #${e.seq}${target ? ' · ' + target.title : ''}`
     case 'redo': return `Refez #${e.seq}${target ? ' · ' + target.title : ''}`
@@ -637,7 +643,7 @@ export const register: Register = on => {
               : <Box flexDirection="column" gap="sm">
                 {(x.prompts || []).map((p, i) => card(`p-${i}`, <>
                   <Text size="footnote" color={i ? ACCENT : undefined} dimColor={!i}>{i === 0 ? `Pedido · ${when(p.at)}` : `✎ Alteração no meio do caminho · ${when(p.at)}`}</Text>
-                  <Text>{p.text.length > 2000 ? p.text.slice(0, 2000) + '…' : p.text}</Text>
+                  <Text>{(t => (t.length > 2000 ? t.slice(0, 2000) + '…' : t))(cleanPrompt(p.text))}</Text>
                 </>, i > 0))}
               </Box>)}
 
