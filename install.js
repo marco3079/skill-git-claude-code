@@ -20,7 +20,9 @@ const SOURCE = process.env.CLAUDE_HISTORICO_SOURCE || REPO;
 const MARKETPLACE = 'historico-requisicoes';
 // historico: hooks, CLI e skills; historico-painel: painel ao lado do chat (desktop e VS Code)
 const PLUGINS = ['historico', 'historico-painel'];
-const EXT_ID = 'bottomup.claude-request-history';
+const EXT_ID = 'marco3079.claude-request-history';
+// IDs usados por versões anteriores da extensão: saem na instalação para não ficarem duas
+const OLD_EXT_IDS = ['bottomup.claude-request-history'];
 const VSIX = path.join(__dirname, 'dist', 'claude-request-history.vsix');
 const IS_WIN = process.platform === 'win32';
 
@@ -111,6 +113,10 @@ function installExtension(code) {
     console.log(`    VS Code → Extensões → "..." → Instalar do VSIX… → ${VSIX}`);
     return false;
   }
+  const installed = run(code, ['--list-extensions']).out.toLowerCase().split(/\r?\n/);
+  for (const old of OLD_EXT_IDS) {
+    if (installed.includes(old)) { run(code, ['--uninstall-extension', old]); ok(`Versão antiga da extensão removida (${old})`); }
+  }
   const r = run(code, ['--install-extension', VSIX, '--force']);
   if (r.code !== 0) { warn(`Falha ao instalar a extensão:\n${r.out}`); return false; }
   ok(`Extensão "Claude Request History" instalada (${code})`);
@@ -125,7 +131,10 @@ function uninstall(claude, code) {
   } else {
     for (const p of PLUGINS) warn(`No chat do Claude: /plugin uninstall ${p}@${MARKETPLACE}`);
   }
-  if (code) { run(code, ['--uninstall-extension', EXT_ID]); ok('Extensão removida do VS Code'); }
+  if (code) {
+    for (const id of [EXT_ID, ...OLD_EXT_IDS]) run(code, ['--uninstall-extension', id]);
+    ok('Extensão removida do VS Code');
+  }
   info(`O histórico gravado continua em ${path.join(os.homedir(), '.claude', 'request-history')} (apague se quiser).`);
 }
 
