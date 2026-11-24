@@ -198,12 +198,23 @@ function cleanPrompt(text) {
 /** Título para mostrar; corrige os gravados antes da limpeza dos blocos do editor. */
 function displayTitle(e) {
   if (e.title && !/^\s*</.test(e.title)) return e.title;
-  return firstLine(cleanPrompt(e.prompts && e.prompts[0] && e.prompts[0].text)) || e.title || 'Requisição';
+  const text = cleanPrompt(e.prompts && e.prompts[0] && e.prompts[0].text);
+  // gravadas antes de os retornos de subagentes deixarem de abrir requisições
+  if (/^\s*<agent-message\b/i.test(text)) return 'Retorno de subagente';
+  return titleFrom(text) || e.title || 'Requisição';
 }
 
 /** Mensagens que não foram digitadas pelo usuário (avisos de tarefas em segundo plano etc.). */
 function isSystemPrompt(prompt) {
-  return /^\s*<(task-notification|side-sessions-event|ci-monitor-event|system-reminder|scheduled-task|teammate-message|channel-message|local-command-[\w-]+|command-[\w-]+)[\s>]/i.test(String(prompt || ''));
+  return /^\s*<(task-notification|agent-message|side-sessions-event|ci-monitor-event|system-reminder|scheduled-task|teammate-message|channel-message|local-command-[\w-]+|command-[\w-]+)[\s>]/i.test(String(prompt || ''));
+}
+
+/** Título de uma mensagem: o que o usuário escreveu fora de um texto colado; senão, o começo do colado. */
+function titleFrom(text) {
+  const own = firstLine(String(text || '').replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content>/gi, ' '));
+  if (own) return own;
+  const pasted = /<pasted_content\b[^>]*>([\s\S]*?)<\/pasted_content>/i.exec(String(text || ''));
+  return pasted ? `(texto colado) ${firstLine(pasted[1], 70)}` : '';
 }
 
 // ---------------------------------------------------------------------------
@@ -676,11 +687,14 @@ class Store {
       const cur = sess.current && this.entryById(idx, sess.current);
 
       if (isSystemPrompt(prompt)) {
-        // aviso automático (tarefa em segundo plano etc.): o que o Claude fizer entra na requisição atual
+        // aviso automático (tarefa em segundo plano, retorno de subagente…): o que o Claude fizer
+        // entra na requisição atual, e o Stop desse turno não troca o resumo dela
         if (cur && cur.status === 'open') cur.lastActivityAt = nowIso();
+        sess.systemTurn = true;
         this.save(idx);
         return { notices, request: cur || null, system: true };
       }
+      sess.systemTurn = false;
 
       if (cur && cur.status === 'open' && !cur.stoppedAt && this.isRunning(cur)) {
         // o usuário mandou outra mensagem antes do Claude terminar: é a mesma requisição, alterada
@@ -709,7 +723,7 @@ class Store {
       idx.seq += 1;
       const r = {
         kind: 'request', id: newId('r'), seq: idx.seq, sessionId, status: 'open',
-        title: firstLine(text) || '(mensagem vazia)', prompts: [{ text, at: nowIso() }],
+        title: titleFrom(text) || '(mensagem vazia)', prompts: [{ text, at: nowIso() }],
         startedAt: nowIso(), lastActivityAt: nowIso(), endedAt: null, stoppedAt: null,
         parent: idx.head, commit: null, files: [], fileCount: 0, add: 0, del: 0,
         plan: null, planRevisions: 0, toolFiles: [], intro: null, summary: null, amended: false,
@@ -757,29 +771,35 @@ class Store {
       const idx = this.load();
       if (!idx || idx.disabled) return null;
       const sess = idx.sessions[sessionId] || (idx.sessions[sessionId] = { seenOps: countOps(idx) });
+      const followUp = !!sess.systemTurn; // turno aberto por um aviso automático, não pelo usuário
+      sess.systemTurn = false;
       let r = sess.current && this.entryById(idx, sess.current);
       const isLast = r && idx.entries[idx.entries.length - 1] === r;
       if (!r || !(r.status === 'open' || (r.status === 'done' && isLast))) {
         // o Claude trabalhou sem uma nova mensagem do usuário (ex.: tarefa em segundo plano)
-        if (this.snapshot() === this.treeOf(idx.head, idx)) return null;
+        if (this.snapshot() === this.treeOf(idx.head, idx)) { this.save(idx); return null; }
+        const prev = r;
         idx.seq += 1;
         r = {
           kind: 'request', id: newId('r'), seq: idx.seq, sessionId, status: 'open', auto: true,
-          title: 'Continuação do Claude (sem nova mensagem)', prompts: [], startedAt: nowIso(),
+          title: prev ? `Continuação da #${prev.seq}${followUp ? ' (retorno de subagente)' : ''}` : 'Continuação do Claude (sem nova mensagem)',
+          continuationOf: prev ? prev.id : undefined, prompts: [], startedAt: nowIso(),
           lastActivityAt: nowIso(), parent: idx.head, commit: null, files: [], fileCount: 0, add: 0, del: 0,
           plan: null, planRevisions: 0, toolFiles: [], amended: false,
         };
         idx.entries.push(r);
         sess.current = r.id;
       }
-      let texts = {};
-      try { texts = readTurnTexts(transcriptPath); } catch (e) { logError(e, 'transcript'); }
-      if (texts.first && !r.intro) r.intro = clip(texts.first, 1500);
-      const summary = lastMessage || texts.last;
-      if (summary) r.summary = clip(summary, 4000);
-      if (!r.plan || !((r.plan.items && r.plan.items.length) || r.plan.text)) {
-        const items = parsePlanText(texts.first) || parsePlanText(texts.last);
-        if (items) { r.plan = { items, text: null, fromText: true }; r.planRevisions = 1; }
+      if (!(followUp && r.stoppedAt)) {
+        let texts = {};
+        try { texts = readTurnTexts(transcriptPath); } catch (e) { logError(e, 'transcript'); }
+        if (texts.first && !r.intro) r.intro = clip(texts.first, 1500);
+        const summary = lastMessage || texts.last;
+        if (summary) r.summary = clip(summary, 4000);
+        if (!r.plan || !((r.plan.items && r.plan.items.length) || r.plan.text)) {
+          const items = parsePlanText(texts.first) || parsePlanText(texts.last);
+          if (items) { r.plan = { items, text: null, fromText: true }; r.planRevisions = 1; }
+        }
       }
       this.commitLateWork(idx, r);
       this.finalizeRequest(idx, r, { rewrite: true });

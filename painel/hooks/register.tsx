@@ -157,8 +157,14 @@ function titleOf(e: HistEntry, idx: HistIndex): string {
   switch (e.kind) {
     case 'request': {
       if (e.title && !/^\s*</.test(e.title)) return e.title
-      const first = cleanPrompt(e.prompts?.[0]?.text).split('\n').find(l => l.trim())
-      return first?.trim().slice(0, 90) || e.title || 'Requisição'
+      const text = cleanPrompt(e.prompts?.[0]?.text)
+      // gravadas antes de os retornos de subagentes deixarem de abrir requisições
+      if (/^\s*<agent-message\b/i.test(text)) return 'Retorno de subagente'
+      const firstText = (s: string) => (s.split('\n').find(l => l.trim()) || '').trim()
+      const own = firstText(text.replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content>/gi, ' '))
+      if (own) return own.slice(0, 90)
+      const pasted = /<pasted_content\b[^>]*>([\s\S]*?)<\/pasted_content>/i.exec(text)
+      return pasted ? `(texto colado) ${firstText(pasted[1] ?? '').slice(0, 70)}` : e.title || 'Requisição'
     }
     case 'manual': return 'Alterações fora do Claude' + (e.note ? ` · ${e.note}` : '')
     case 'undo': return `Desfez #${e.seq}${target ? ' · ' + target.title : ''}`

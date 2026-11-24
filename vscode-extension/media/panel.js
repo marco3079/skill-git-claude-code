@@ -75,10 +75,16 @@
   function cleanPrompt(text) {
     return String(text || '').replace(/<(ide_[a-z_]+|system-reminder)>[\s\S]*?<\/\1>\s*/gi, '').trim();
   }
+  const firstText = s => (String(s || '').split('\n').find(l => l.trim()) || '').trim();
   function displayTitle(e) {
     if (e.title && !/^\s*</.test(e.title)) return e.title;
-    const p = e.prompts && e.prompts[0] ? cleanPrompt(e.prompts[0].text) : '';
-    return (p.split('\n').find(l => l.trim()) || '').trim().slice(0, 90) || e.title || 'Requisição';
+    const text = e.prompts && e.prompts[0] ? cleanPrompt(e.prompts[0].text) : '';
+    // gravadas antes de os retornos de subagentes deixarem de abrir requisições
+    if (/^\s*<agent-message\b/i.test(text)) return 'Retorno de subagente';
+    const own = firstText(text.replace(/<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content>/gi, ' '));
+    if (own) return own.slice(0, 90);
+    const pasted = /<pasted_content\b[^>]*>([\s\S]*?)<\/pasted_content>/i.exec(text);
+    return pasted ? `(texto colado) ${firstText(pasted[1]).slice(0, 70)}` : (e.title || 'Requisição');
   }
 
   function titleOf(e) {

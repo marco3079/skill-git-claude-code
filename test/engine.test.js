@@ -245,6 +245,23 @@ try {
   assert.ok(recentes.every(e => !e.compacted), 'as mais recentes ficam inteiras');
   ok('índice compacta as entradas antigas e mantém o texto completo no commit');
 
+  // retorno de subagente não abre requisição; o que o Claude fizer em seguida entra na que lançou o agente
+  hook('UserPromptSubmit', { session_id: 'S6', prompt: '<pasted_content id="1">SELECT * FROM kit;\nlinha 2</pasted_content>' });
+  const colada = idx().entries[idx().entries.length - 1];
+  assert.strictEqual(colada.title, '(texto colado) SELECT * FROM kit;');
+  hook('Stop', { session_id: 'S6', last_assistant_message: 'Disparei um subagente.' });
+  const seqAntes = idx().seq;
+  hook('UserPromptSubmit', { session_id: 'S6', prompt: '<agent-message from="a123">\n[Subagent hand-back] relatório\n</agent-message>' });
+  assert.strictEqual(idx().seq, seqAntes, 'retorno de subagente não vira requisição');
+  write('kit/subagente.php', '<?php // do subagente\n');
+  hook('PostToolUse', { session_id: 'S6', tool_name: 'Write', tool_input: { file_path: P('kit/subagente.php') } });
+  hook('Stop', { session_id: 'S6', last_assistant_message: 'Recebi o relatório do subagente.' });
+  const depois = idx().entries.find(e => e.id === colada.id);
+  assert.deepStrictEqual(depois.files.map(f => f.p), ['kit/subagente.php'], 'edição do turno do subagente na requisição original');
+  assert.strictEqual(depois.summary, 'Disparei um subagente.', 'o resumo da requisição não é trocado pelo turno automático');
+  assert.strictEqual(core.displayTitle({ title: '<agent-message from="x">', prompts: [{ text: '<agent-message from="x">oi</agent-message>' }] }), 'Retorno de subagente');
+  ok('retorno de subagente não abre requisição e título de texto colado fica legível');
+
   console.log('\n' + cli('listar', '-n', '30').out);
   console.log(`Todos os ${step} cenários passaram.`);
 } finally {
