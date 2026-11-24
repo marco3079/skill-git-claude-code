@@ -2,7 +2,7 @@
   "name": "claude-request-history",
   "displayName": "Claude Request History",
   "description": "Popup com o histórico de requisições do Claude Code em formato git: pedido, plano, arquivos alterados, diff e desfazer/refazer da mais recente.",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "publisher": "marco3079",
   "license": "MIT",
   "engines": {

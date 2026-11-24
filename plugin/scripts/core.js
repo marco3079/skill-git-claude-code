@@ -26,6 +26,11 @@ const AMEND_WINDOW_MS = 30 * 60 * 1000;
 const MAX_FILES_LISTED = 2000;
 const MAX_PROJECT_FILES = Number(process.env.CLAUDE_RH_MAX_FILES || 60000);
 const MAX_TEXT = 8000;
+// só as entradas mais recentes guardam o texto inteiro no index.json (o painel do Claude lê até 4 MiB)
+const KEEP_FULL = Number(process.env.CLAUDE_RH_KEEP_FULL || 150);
+const OLD_TEXT = 400;
+const OLD_FILES = 100;
+const MAX_INDEX_CHARS = 3 * 1024 * 1024;
 const IS_WIN = process.platform === 'win32';
 
 const DEFAULT_EXCLUDES = [
@@ -410,7 +415,16 @@ class Store {
 
   save(idx) {
     idx.updatedAt = nowIso();
-    writeFileAtomic(this.indexFile, JSON.stringify(idx, null, 1));
+    let keep = KEEP_FULL;
+    compactIndex(idx, keep);
+    let text = JSON.stringify(idx, null, 1);
+    // pedidos muito longos nas recentes: compacta mais até caber com folga no limite de leitura do painel
+    while (text.length > MAX_INDEX_CHARS && keep > 10) {
+      keep = Math.floor(keep / 2);
+      compactIndex(idx, keep);
+      text = JSON.stringify(idx, null, 1);
+    }
+    writeFileAtomic(this.indexFile, text);
   }
 
   lockIsStale() {
@@ -873,6 +887,26 @@ class Store {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Mantém o index.json pequeno: fora das KEEP_FULL entradas mais recentes, encurta o texto dos
+ * pedidos e da resposta, tira a primeira fala do Claude e limita a lista de arquivos. O pedido e o
+ * plano completos continuam na mensagem do commit de cada requisição.
+ */
+function compactIndex(idx, keep = KEEP_FULL) {
+  const cut = idx.entries.length - keep;
+  for (let i = 0; i < cut; i++) {
+    const e = idx.entries[i];
+    if (e.compacted || e.status === 'open' || (e.lateFiles || []).length) continue;
+    if (e.prompts) e.prompts = e.prompts.map(p => Object.assign({}, p, { text: clip(p.text, OLD_TEXT) }));
+    if (e.summary) e.summary = clip(e.summary, OLD_TEXT);
+    if (e.plan && e.plan.text) e.plan.text = clip(e.plan.text, OLD_TEXT * 2);
+    delete e.intro;
+    delete e.toolFiles;
+    if (e.files && e.files.length > OLD_FILES) { e.files = e.files.slice(0, OLD_FILES); e.filesTruncated = true; }
+    e.compacted = true;
+  }
+}
+
 function setFiles(e, files, toolFiles) {
   const tool = (toolFiles || []).map(f => IS_WIN ? f.toLowerCase() : f);
   e.fileCount = files.length;
@@ -946,5 +980,5 @@ function requestOpen(projectDir) {
 module.exports = {
   HOME, Store, findStore, listProjects, computeTargets, normalizeDir, projectKey,
   requestOpen, logError, firstLine, readTurnTexts, applyPlanTool, parsePlanText, isSystemPrompt,
-  cleanPrompt, displayTitle,
+  cleanPrompt, displayTitle, compactIndex,
 };

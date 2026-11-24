@@ -17,6 +17,8 @@ fs.mkdirSync(PROJ, { recursive: true });
 process.env.CLAUDE_RH_HOME = HOME;
 const core = require('../plugin/scripts/core');
 
+// limite baixo de entradas completas para o cenário de compactação não precisar de 150 requisições
+process.env.CLAUDE_RH_KEEP_FULL = '6';
 const env = Object.assign({}, process.env, { CLAUDE_RH_HOME: HOME, CLAUDE_PROJECT_DIR: PROJ });
 function hook(event, input) {
   const r = spawnSync('node', [RH, 'hook', event], { input: JSON.stringify(Object.assign({ hook_event_name: event, cwd: PROJ }, input)), env, encoding: 'utf8' });
@@ -227,6 +229,21 @@ try {
   assert.ok(cont && cont.files.map(f => f.p).join() === 'kit/extra2.php', 'continuação da #9 com o arquivo do agente');
   assert.strictEqual(req(10).commit, null, 'a #10 não fica com o trabalho da #9');
   ok('edições de agentes em segundo plano depois do Stop vão para a requisição (ou uma continuação), não para "fora do Claude"');
+
+  // compactação: com CLAUDE_RH_KEEP_FULL=6 (env do teste), as entradas antigas ficam enxutas
+  const big = 'x'.repeat(3000);
+  hook('UserPromptSubmit', { session_id: 'S5', prompt: `pedido longo ${big}` });
+  write('longo.txt', 'a\n');
+  hook('Stop', { session_id: 'S5', last_assistant_message: `resposta longa ${big}` });
+  for (let i = 0; i < 6; i++) { hook('UserPromptSubmit', { session_id: 'S5', prompt: `pergunta ${i}` }); hook('Stop', { session_id: 'S5' }); }
+  const longo = idx().entries.find(e => e.kind === 'request' && (e.title || '').startsWith('pedido longo'));
+  assert.ok(longo.compacted, 'entrada antiga marcada como compactada');
+  assert.ok(longo.prompts[0].text.length <= 401 && longo.summary.length <= 401, 'texto encurtado no índice');
+  assert.ok(!('intro' in longo) && !('toolFiles' in longo));
+  assert.ok(store.git(['log', '-1', '--format=%B', longo.commit]).includes(big), 'o pedido completo continua no commit');
+  const recentes = idx().entries.slice(-6);
+  assert.ok(recentes.every(e => !e.compacted), 'as mais recentes ficam inteiras');
+  ok('índice compacta as entradas antigas e mantém o texto completo no commit');
 
   console.log('\n' + cli('listar', '-n', '30').out);
   console.log(`Todos os ${step} cenários passaram.`);
